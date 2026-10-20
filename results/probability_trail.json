@@ -1,0 +1,45 @@
+{
+  "time_utc": "2026-10-20T00:25:45.182427+00:00",
+  "objective": "probability",
+  "gurobi_version": "13.0.3",
+  "status_code": 11,
+  "status": "INTERRUPTED",
+  "optimization_runtime_sec": 2289.242000102997,
+  "solution_count": 9,
+  "constraint_count": 2049,
+  "variable_count": 1280,
+  "warning": "OPTIMAL is established only when Gurobi returns OPTIMAL, subject to solver numerical tolerances.",
+  "incumbent": 32.0,
+  "best_bound": 18.0,
+  "mip_gap": 0.4375,
+  "active_sboxes": 16,
+  "negative_log2_differential_probability": 32,
+  "per_round_trail": [
+    {
+      "round": 0,
+      "input_differences": "2000000000200002",
+      "sbox_output_differences": "4000000000400004",
+      "active_sboxes": 3
+    },
+    {
+      "round": 1,
+      "input_differences": "0040000000000000",
+      "sbox_output_differences": "0020000000000000",
+      "active_sboxes": 1
+    },
+    {
+      "round": 2,
+      "input_differences": "0000000000002202",
+      "sbox_output_differences": "0000000000004404",
+      "active_sboxes": 3
+    },
+    {
+      "round": 3,
+      "input_differences": "4440000044044044",
+      "sbox_output_differences": "2220000022022022",
+      "active_sboxes": 9
+    }
+  ],
+  "independently_verified_differential_transitions": true,
+  "independent_core_check": "PASS"
+}

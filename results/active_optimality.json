@@ -1,0 +1,19 @@
+{
+  "time_utc": "2026-10-20T01:25:07.998459+00:00",
+  "objective": "minimize_number_of_active_sboxes",
+  "status": "OPTIMAL",
+  "status_code": 2,
+  "runtime_sec": 794.4550001621246,
+  "solution_count": 1,
+  "constraint_count": 2049,
+  "variable_count": 1280,
+  "setting_mipfocus": 3,
+  "setting_threads": 8,
+  "setting_nodefile_start_gb": 0.5,
+  "note": "Only OPTIMAL certifies global optimality within Gurobi numerical tolerances.",
+  "best_bound": 16.0,
+  "incumbent": 16.0,
+  "mip_gap": 0.0,
+  "solution_path": "results/active_solution.sol",
+  "provenance": "Copied from completed Gurobi run; local absolute Windows solution path replaced with portable repository path."
+}

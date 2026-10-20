@@ -1,0 +1,27 @@
+{
+  "experiment": "conditional Monte Carlo for exact four-round S-box characteristic under one fixed Midori64 master key",
+  "master_key": "00000101000100016177166671066660",
+  "round1_and_2_probability": "2^-6 (exact for this key, based on conforming triples)",
+  "experimental_method": "force the three active round-1 S-boxes to conform, sample other initial nibbles uniformly, check rounds 3 and 4; reported values account for conditioning",
+  "seeds": [
+    {
+      "seed": 2026,
+      "conditional_samples": 100000000,
+      "full_trail_hits": 1541,
+      "estimated_probability": 2.4078125e-07,
+      "estimated_neg_log2_probability": 21.985773612584115
+    },
+    {
+      "seed": 31415,
+      "conditional_samples": 100000000,
+      "full_trail_hits": 1543,
+      "estimated_probability": 2.4109375e-07,
+      "estimated_neg_log2_probability": 21.983902412528163
+    }
+  ],
+  "scope": "Monte Carlo for one chosen key, not an analytic probability evaluation or a statement about the proportion of all compatible keys",
+  "code": "experiments/fixed_key_trail.c",
+  "references": [
+    "https://eprint.iacr.org/2025/1553"
+  ]
+}

@@ -1,0 +1,20 @@
+Selected probability-aware S-box inequalities:
+Inequality 1: - x2 - x0 - y2 - y0 - P0 + 4 P1 >= 0
+Inequality 2: - 2 x2 - 2 x1 - x0 + 3 y3 + 2 y2 + 2 y1 + 3 y0 + P0 >= 0
+Inequality 3: x3 - 5 x2 - x1 + x0 - 4 y3 + 4 y2 + y1 - 2 y0 + 3 P0 + 7 P1 >= 0
+Inequality 4: x2 - 2 x1 - 3 x0 - 2 y3 - 2 y2 + y1 + 2 y0 + P0 + 6 P1 >= 0
+Inequality 5: x2 + 2 x1 + x0 - 3 y2 - 2 y1 - 3 y0 - P0 + 6 P1 >= 0
+Inequality 6: - x3 - 8 x2 - 5 x1 + 4 x0 + 7 y3 - 2 y2 + 2 y1 + 4 y0 + 3 P0 + 7 P1 >= 0
+Inequality 7: - 4 x3 + 3 x2 - x1 - 2 x0 - y3 - 3 y2 - 2 y1 + 3 y0 + 2 P0 + 8 P1 >= 0
+Inequality 8: x3 + 2 x2 - x1 + 2 y2 - 3 y1 + y0 - 2 P0 + 3 P1 >= 0
+Inequality 9: x3 + 2 x2 - 2 x1 - x0 + 2 y3 - y2 - 2 y1 - 4 y0 + 4 P0 + 6 P1 >= 0
+Inequality 10: - 2 x3 - x2 + x1 - x0 + y3 + 4 y1 + 2 y0 + 3 P0 - P1 >= 0
+Inequality 11: - 4 x3 - 2 x2 + x1 - 2 x0 + y3 + 4 y2 + 5 y1 - 3 y0 + 6 P0 + 2 P1 >= 0
+Inequality 12: - x3 - x2 + 3 x1 + 2 x0 - 2 y3 + 2 y2 - y1 - 4 y0 + 5 P0 + 3 P1 >= 0
+Inequality 13: x2 - x1 + x0 - P0 + P1 >= 0
+Inequality 14: 5 x3 - x2 + x1 + 2 x0 - 2 y3 - 4 y2 - 4 y1 + 2 y0 + 3 P0 + 5 P1 >= 0
+Inequality 15: - x3 + 4 x2 - 2 x1 - 5 x0 + 4 y3 + y2 + 2 y1 - 2 y0 + 3 P0 + 4 P1 >= 0
+Inequality 16: 2 x3 + x2 + 5 x1 + x0 - 4 y3 - 2 y2 + y1 - 2 y0 + 3 P0 + P1 >= 0
+Inequality 17: x3 + 2 x2 + 2 x0 + y3 + 2 y2 + 2 y0 - P0 - 2 P1 >= 0
+Inequality 18: x3 - x2 + x1 - x0 + y2 - y1 + y0 - 2 P0 + 3 P1 >= 0
+Inequality 19: - x3 - x2 - x1 + 2 x0 + 2 y2 - 3 y1 + y0 - 2 P0 + 5 P1 >= 0

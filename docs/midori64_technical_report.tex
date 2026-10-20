@@ -1,0 +1,638 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.25cm,headheight=15pt]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs,tabularx,longtable,array}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{url}
+\usepackage{needspace}
+
+\definecolor{linkblue}{RGB}{17,67,111}
+\definecolor{softgray}{RGB}{85,95,106}
+\hypersetup{colorlinks=true,linkcolor=linkblue,urlcolor=linkblue,citecolor=linkblue,pdftitle={Reproducible Four-Round Midori-64 Differential Characteristic Analysis},pdfauthor={Egemen Ceken}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5.2pt}
+\setlist[itemize]{topsep=3pt,itemsep=2pt,leftmargin=1.5em}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Reproducible Four-Round Midori-64 Analysis}
+\fancyhead[R]{\small Technical Report}
+\fancyfoot[C]{\small \thepage}
+\renewcommand{\headrulewidth}{0.35pt}
+\captionsetup{font=small,labelfont=bf}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,
+  columns=fullflexible,keepspaces=true,showstringspaces=false,
+  rulecolor=\color{black!18},backgroundcolor=\color{black!2},
+  xleftmargin=4pt,xrightmargin=4pt,aboveskip=8pt,belowskip=8pt}
+\newtheorem{proposition}{Proposition}
+
+\title{\vspace{-1.2cm}\bfseries Reproducible Four-Round Midori-64\\[4pt]\large Differential Characteristic Analysis}
+\author{Egemen \c{C}eken\\\small Technical Research Report}
+\date{October 2026}
+
+\begin{document}
+\maketitle
+\vspace{-1.1cm}
+\begin{abstract}
+This technical report presents a reproducible mixed-integer linear programming (MILP) analysis of four-round
+Midori-64. The S-box activity and exact differential transitions, the ShuffleCell
+permutation, and the MixColumn layer are encoded using a single consistent modeling
+framework adapted from \c{I}lter and Sel\c{c}uk. The complete four-round model has
+1,280 binary variables and 2,049 constraints. An exhaustive component check verifies
+that the reduced 19-inequality S-box formulation accepts exactly the 97 valid
+input/output/probability patterns among all 1,024 binary patterns.
+Gurobi 13.0.3 \emph{certifies} that the minimum number of active S-boxes is 16,
+with an objective value and best bound both equal to 16 and a zero optimality gap.
+An independent word-level dynamic program reproduces the same four-round bound without MILP. A feasible differential characteristic with 16 active S-boxes attains the
+DDT-product probability $2^{-32}$; combining this witness with the certified
+active-S-box bound proves its optimality \emph{within the specified four-round
+characteristic model}. Finally, the characteristic is realized by an explicit
+master key and plaintext pair in a four-round reduced Midori-64 implementation
+with key addition, round constants, and whitening. We distinguish a
+characteristic probability product from an exact fixed-key differential probability
+and document exploratory conditional fixed-key sampling near $2^{-22}$ for the exhibited master key. This reproduces known fixed-key phenomena rather than claiming a new security bound for the full cipher.
+\end{abstract}
+
+\section{Introduction and Scope}
+Midori is a family of lightweight block ciphers designed for low energy
+consumption \cite{banik2015}. This study focuses on the 64-bit variant,
+Midori-64, whose state consists of sixteen four-bit cells. Our goal is to reproduce the four-round active-S-box bound using an exact MILP model,
+derive an optimal DDT-product characteristic within that model, and independently
+validate its four-round realization under a concrete master key.
+
+The modeling methodology follows the S-box, permutation, and XOR construction
+in \c{I}lter and Sel\c{c}uk's analysis of the \emph{FUTURE} block cipher
+\cite{ilter2023}; we apply the \emph{method}, not FUTURE's specific S-box or linear
+layer, to Midori-64. Foundational MILP studies include Mouha et al.~\cite{mouha2012} and the convex-hull formulation of Sun et al.~\cite{sun2014}. All component constraints are retained unchanged between the active-S-box
+and probability optimizations; only the objective function is changed.
+
+We model four consecutive SubCell layers, indexed $r=0,1,2,3$, with three
+intervening ShuffleCell/MixColumn layers. The last round has no following
+ShuffleCell/MixColumn operation. This convention also defines the four-round
+reduced cipher used in the verification experiment. All cell indices below
+follow a column-major order: cells $0,1,2,3$ form the first column, and so on.
+
+\section{Preliminaries}
+\subsection{The Midori-64 round components}
+The four-bit Midori-64 substitution used in this implementation is
+\[
+S=(\mathtt{C},\mathtt{A},\mathtt{D},\mathtt{3},\mathtt{E},\mathtt{B},
+\mathtt{F},\mathtt{7},\mathtt{8},\mathtt{9},\mathtt{1},\mathtt{5},
+\mathtt{0},\mathtt{2},\mathtt{4},\mathtt{6}),
+\]
+where entries are listed in input order $0,1,\ldots,15$ (hexadecimal notation).
+Each state consists of 16 nibbles and thus 64 bits. SubCell applies $S$ to
+every nibble. ShuffleCell permutes cell positions, and MixColumn combines the
+four cells of each column by XOR.
+
+For a nonzero input difference $\Delta x$, an S-box is called \emph{active}.
+The difference distribution table (DDT) is
+\begin{equation}\label{eq:ddt}
+ D[\alpha,\beta]
+ =\bigl|\{u\in\{0,\ldots,15\}: S(u)\oplus S(u\oplus\alpha)=\beta\}\bigr|,
+ \qquad p(\alpha,\beta)=\frac{D[\alpha,\beta]}{16}.
+\end{equation}
+The computed DDT contains 159 zero entries, 72 entries equal to 2,
+24 entries equal to 4, and one entry equal to 16. Thus 97 of the 256
+input/output difference pairs are allowed. For an active S-box,
+the largest single-transition probability is $4/16=2^{-2}$.
+
+\subsection{Characteristic probability convention}
+A differential \emph{characteristic} specifies the input and output difference
+of every S-box along the chosen four-round path. Its standard DDT-product weight is
+\begin{equation}\label{eq:trail-prob}
+ P_{\mathrm{trail}}=\prod_{r=0}^{3}\prod_{c=0}^{15}
+ \frac{D[\Delta x_{r,c},\Delta y_{r,c}]}{16}.
+\end{equation}
+This is a product of local differential transition probabilities; it is not,
+without additional assumptions, a measured probability of the entire specified
+path for an individual fixed key. It is also distinct from a \emph{differential}
+probability obtained by summing over multiple characteristics with matching
+external differences.
+
+\section{Exact MILP Formulation}
+\subsection{S-box activity indicators}
+Let $x_0,x_1,x_2,x_3$ be the four input difference bits of a bijective S-box;
+let $y_0,y_1,y_2,y_3$ denote its output difference bits; and introduce an
+activity indicator $A\in\{0,1\}$. The seven activity and nonzero-propagation
+inequalities used in \cite[Sec.~4.1]{ilter2023} are
+\begin{align}
+ x_i-A&\leq 0 &&(i=0,1,2,3),\label{eq:act}\\
+ \sum_{i=0}^{3}x_i-A&\geq 0,\label{eq:act-lower}\\
+ 4\sum_{i=0}^{3}x_i-\sum_{i=0}^{3}y_i&\geq0,\\
+ 4\sum_{i=0}^{3}y_i-\sum_{i=0}^{3}x_i&\geq0.
+\end{align}
+These ensure that $A=1$ precisely when the input difference is nonzero and
+that a nonzero input difference cannot produce a zero output difference (or
+vice versa). There are $7\cdot64=448$ such inequalities in the four-round model.
+They encode activity but do not, by themselves, capture the complete DDT.
+
+\subsection{Exact S-box transitions and probability costs}
+To encode exact S-box transitions and probabilities, we follow the
+H-representation and set-cover approach of Sasaki and Todo
+\cite{sasaki2017}, as used in \cite[Sec.~4.1]{ilter2023}.
+Every S-box transition is represented by a ten-bit vector
+\[
+ E=(x_3,x_2,x_1,x_0,y_3,y_2,y_1,y_0,P_0,P_1).
+\]
+The two probability bits encode $-\log_2 p$ as follows:
+\begin{table}[H]
+ \centering
+ \caption{Exact probability encoding for allowed Midori-64 S-box transitions.}
+ \begin{tabular}{ccccc}
+ \toprule
+ DDT count & Local probability & $P_0$ & $P_1$ & $P_0+2P_1$\\
+ \midrule
+ $16$ & $1$ & 0 & 0 & 0\\
+ $4$ & $2^{-2}$ & 0 & 1 & 2\\
+ $2$ & $2^{-3}$ & 1 & 1 & 3\\
+ \bottomrule
+ \end{tabular}
+\end{table}
+The underlying SageMath construction forms the convex hull of all 97 allowed
+binary vectors, computes its H-representation, and uses a set-cover MILP to
+select inequalities excluding every disallowed binary vector. The resulting
+system consists of \textbf{19 inequalities per S-box}. The precise 19 rows
+are provided in \texttt{selected\_inequalities.txt} and are loaded unchanged
+by the model generator. An exhaustive verification over all $2^{10}=1024$
+binary vectors confirms that \emph{exactly} the 97 DDT-consistent vectors
+are accepted; all 927 other assignments are rejected. Over 64 S-box instances,
+this contributes $19\cdot64=1,216$ inequalities.
+
+The seven activity inequalities and the 19 exact-DDT inequalities
+are included together in \emph{both} full-round optimization models. This
+shared S-box representation is central to methodological consistency.
+
+\subsection{ShuffleCell permutation constraints}
+For the state serialization used here, the ShuffleCell output at position $c$
+reads the input at position $\pi(c)$, where
+\begin{equation}\label{eq:shuffle}
+\pi=(0,10,5,15,14,4,11,1,9,3,12,6,7,13,2,8).
+\end{equation}
+Let $y_{r,c,b}$ be bit $b$ of the SubCell output difference at round $r$ and
+$z_{r,c,b}$ the corresponding ShuffleCell output bit. The permutation is
+modeled exactly by the equality
+\begin{equation}\label{eq:sh-eq}
+ z_{r,c,b}=y_{r,\pi(c),b},\qquad
+ r=0,1,2;\quad c=0,\ldots,15;\quad b=0,\ldots,3.
+\end{equation}
+Three layers of 64 bit equalities produce $192$ constraints, in the manner of
+\cite[Sec.~4.2]{ilter2023}.
+
+\subsection{MixColumn and XOR parity constraints}
+Each column is represented by four consecutive cells. With column input
+$(z_0,z_1,z_2,z_3)$, the Midori MixColumn transformation is
+\begin{equation}\label{eq:mix}
+\begin{pmatrix}w_0\\w_1\\w_2\\w_3\end{pmatrix}=
+\begin{pmatrix}
+0&1&1&1\\1&0&1&1\\1&1&0&1\\1&1&1&0
+\end{pmatrix}
+\begin{pmatrix}z_0\\z_1\\z_2\\z_3\end{pmatrix}
+\quad\text{over }\mathbb F_2^4.
+\end{equation}
+In particular, $w_0=z_1\oplus z_2\oplus z_3$. For three input bits
+$a,b,c$ and output bit $d=a\oplus b\oplus c$, the parity is encoded by
+\begin{equation}\label{eq:xor}
+ a+b+c+d=4u-2v,\qquad u,v\in\{0,1\}.
+\end{equation}
+The output of each inter-round MixColumn becomes the next SubCell input
+$x_{r+1,c,b}$. Using \eqref{eq:xor} for every bit gives $192$ parity
+equalities and $384$ auxiliary binary variables. Exhaustive testing of
+all $16$ assignments $(a,b,c,d)$ confirms that the equation is feasible
+in the dummy variables if and only if $d=a\oplus b\oplus c$.
+
+\section{Four-Round Model and Experimental Setup}
+\subsection{A common feasible region for both objectives}
+Let $A_{r,c}$ denote S-box activity and $P_{0,r,c},P_{1,r,c}$ its probability bits.
+We use the same four-round constraints for both experiments and require a
+nontrivial initial difference:
+\begin{equation}\label{eq:nonzero}
+ \sum_{c=0}^{15}\sum_{b=0}^{3} x_{0,c,b}\geq1.
+\end{equation}
+Only the objective changes:
+\begin{align}
+ \text{Active S-box count: } &\min N_{\rm active}
+ =\min\sum_{r=0}^{3}\sum_{c=0}^{15}A_{r,c},\label{eq:obj-act}\\
+ \text{Characteristic cost: } &\min C
+ =\min\sum_{r=0}^{3}\sum_{c=0}^{15}
+ \bigl(P_{0,r,c}+2P_{1,r,c}\bigr)
+ =\min\bigl(-\log_2P_{\rm trail}\bigr).\label{eq:obj-prob}
+\end{align}
+
+\begin{table}[H]
+ \centering
+ \caption{Size of each four-round MILP before presolve.}
+ \begin{tabular}{lr}
+ \toprule
+ Constraint category & Number\\
+ \midrule
+ S-box activity inequalities ($64\times7$) & 448\\
+ S-box H-representation inequalities ($64\times19$) & 1,216\\
+ ShuffleCell bit equalities ($3\times64$) & 192\\
+ MixColumn XOR equalities ($3\times64$) & 192\\
+ Nonzero initial difference & 1\\
+ \midrule
+ \textbf{Total constraints} & \textbf{2,049}\\
+ \textbf{Total binary variables} & \textbf{1,280}\\
+ \bottomrule
+ \end{tabular}
+\end{table}
+The $1,280$ variables consist of 512 SubCell input/output difference bits,
+64 activity indicators, 128 probability bits, 192 ShuffleCell bits, and
+384 XOR dummy bits. The LP generator writes separate files for the two
+objectives while keeping their \emph{constraint systems identical}.
+
+\subsection{Validation and solver environment}
+The component tests check the entire ten-bit H-representation truth table,
+the XOR parity encoding, the agreement of the two models' constraint systems,
+and randomly constructed valid differential trails. Fourteen automated tests
+pass, including a replay of the published experiment records. Independently, the saved Gurobi activity solution was checked against
+all 2,049 inequalities with zero violations; the probability trail was checked
+against a separately implemented Midori DDT and linear layers.
+
+Optimization used Gurobi 13.0.3 on Windows 11 with an AMD Ryzen AI 7 350 CPU.
+The final activity-count run used eight threads, \texttt{MIPFocus=3},
+\texttt{MIPGap=0}, and a six-hour time limit. A previously obtained feasible
+probability-trail solution with objective 16 was supplied as a MIP start; the
+new run \emph{certified optimality}, rather than discovering this incumbent. The solver terminated
+well before the time limit.
+
+\section{Certified Minimum Number of Active S-boxes}
+Gurobi \emph{certified} a minimum of 16 active S-boxes for the
+four-round MILP described in Section~4. The run loaded a feasible 16-active
+solution as a MIP start (recorded as \texttt{Loaded user MIP start with
+objective 16}). The solver's contribution was to close the lower bound to
+16 and certify global optimality within the model; it did not discover the
+initial incumbent during this run. The final solver information is
+summarized in Table~\ref{tab:active-res}.
+\begin{table}[H]
+ \centering
+ \caption{Certified four-round active-S-box result (Gurobi 13.0.3).}\label{tab:active-res}
+ \begin{tabular}{lr}
+ \toprule
+ Solver status & \texttt{OPTIMAL}\\
+ Best feasible objective (incumbent) & 16\\
+ Best objective bound & 16\\
+ Relative optimality gap & $0\%$\\
+ Branch-and-bound nodes explored & 60,345\\
+ Runtime & $794.455$ s ($\approx13$ min $14$ s)\\
+ Model size & 2,049 constraints; 1,280 binary variables\\
+ \bottomrule
+ \end{tabular}
+\end{table}
+Because the solver's certified lower bound matches the feasible incumbent,
+\begin{equation}\label{eq:active-result}
+ \boxed{\min N_{\rm active}=16}
+\end{equation}
+within this exact four-round model (subject to standard numerical tolerances).
+This independently reproduces the four-round value reported for Midori64 by
+its designers \cite{banik2015}. It is \emph{not} a newly discovered
+active-S-box lower bound for the cipher.
+
+An optimal solution has the following active cell indices, numbered from 0
+through 15:
+\begin{table}[H]
+ \centering
+ \caption{Activity pattern of the saved optimal solution.}
+ \begin{tabular}{clc}
+ \toprule
+ Round & Active cell indices & Count\\
+ \midrule
+ 1 & $0,10,15$ & 3\\
+ 2 & $2$ & 1\\
+ 3 & $12,13,15$ & 3\\
+ 4 & $0,1,2,8,9,11,12,14,15$ & 9\\
+ \midrule
+ Total & & \textbf{16}\\
+ \bottomrule
+ \end{tabular}
+\end{table}
+
+\subsection{The wide-trail bound and independent word-level validation}
+The theoretical explanation predates this implementation. Midori64's
+MixColumn has differential branch number $B=4$, and its ShuffleCell is an
+optimal cell permutation for diffusion. Under these conditions, the
+four-round propagation theorem of Daemen and Rijmen
+\cite[Ch.~9, Sec.~9.5]{daemen2002} gives at least $B^2=16$ active
+S-boxes across four rounds. The original Midori paper reports this value
+in its active-S-box comparison (Table~8) \cite{banik2015}.
+The following dynamic program provides a separate, directly executable
+verification of the bound for Midori's \emph{actual} column transformation
+and cell permutation, without invoking a floating-point MILP solver.
+
+A separate verification does not require MILP or numerical solver tolerances.
+Represent an active-cell pattern by a nonzero binary word
+$u\in\{0,1\}^{16}$ and let $w(u)$ be its Hamming weight. For each
+four-cell input pattern to MixColumn, enumerate the possible nonzero output
+patterns by applying the exact linear transformation to all $16^4$
+nibble vectors. Let $T$ denote the induced, four-column relation, composed
+with the ShuffleCell permutation. Then the dynamic program
+\[
+ F_1(u)=\begin{cases}w(u),&u\ne0,\\+\infty,&u=0,\end{cases}
+ \qquad
+ F_{r+1}(v)=w(v)+\min_{u:\,u\,T\,v}F_r(u)
+\]
+minimizes the sum of active-cell counts over the \emph{relaxed} activity model.
+Because every concrete bit-level characteristic induces a permissible
+sequence of activity patterns, its active-S-box count is at least
+$\min_v F_4(v)$. The independently implemented program
+\texttt{independent\_checks.py} produces, for one through eight rounds,
+\[
+ (1,4,7,16,23,30,35,38).
+\]
+In particular, $\min_v F_4(v)=16$, and our explicit bit-level
+16-active characteristic attains this lower bound. This complements the Gurobi calculation with a combinatorial,
+solver-independent lower bound. Together with the explicit 16-active
+bit-level characteristic, it establishes equality in the stated four-round
+setting. This reproduces a known diffusion result; it is not a new
+cryptanalytic bound.
+
+\subsection{An equivalent compact LP}
+The 192 ShuffleCell bit equalities can be eliminated by substituting
+$z_{r,c,b}=y_{r,\Pi(c),b}$ directly into the MixColumn equations.
+The resulting LP has 1,857 constraints and 1,088 binary variables. An
+automated equivalence audit checks that the archived full-model optimum
+projects onto a feasible compact-model assignment of objective 16.
+The compact construction is designed to fit Gurobi's standard 2,000-row,
+2,000-variable size-limited license; the archived \texttt{OPTIMAL}
+solver log is nevertheless for the original full model.
+
+\section{Best Four-Round Differential Characteristic}
+A separate probability-minimizing Gurobi run found the characteristic in
+Table~\ref{tab:trail}. The direct probability optimization was interrupted
+after $2,289.24$ seconds: its best cost was 32, its branch-and-bound lower
+bound was 18, and its reported gap was $43.75\%$. Therefore, \emph{that
+run alone did not certify probability optimality}. The certified
+active-S-box result supplies the missing bound on the DDT-product weight.
+
+\begin{table}[H]
+ \centering
+ \caption{Four-round Midori-64 differential characteristic; states are 16 hex nibbles in column-major order.}\label{tab:trail}
+ \footnotesize
+ \begin{tabular}{c@{\hspace{5pt}}l@{\hspace{7pt}}l@{\hspace{6pt}}cc}
+ \toprule
+ Round & SubCell input $\Delta x$ & SubCell output $\Delta y$ & Active & $p_r$\\
+ \midrule
+ 1 & \texttt{2000000000200002} & \texttt{4000000000400004} & 3 & $2^{-6}$\\
+ 2 & \texttt{0040000000000000} & \texttt{0020000000000000} & 1 & $2^{-2}$\\
+ 3 & \texttt{0000000000002202} & \texttt{0000000000004404} & 3 & $2^{-6}$\\
+ 4 & \texttt{4440000044044044} & \texttt{2220000022022022} & 9 & $2^{-18}$\\
+ \midrule
+ Total & & & \textbf{16} & $\boldsymbol{2^{-32}}$\\
+ \bottomrule
+ \end{tabular}
+\end{table}
+Each of the 16 active transitions in this path has a DDT count of 4 and
+therefore probability $2^{-2}$. Inactive S-boxes contribute probability 1.
+Consequently,
+\begin{equation}\label{eq:prob-witness}
+ P_{\rm trail}=2^{-6}\cdot 2^{-2}\cdot 2^{-6}\cdot 2^{-18}
+ =\boxed{2^{-32}}, \qquad C=32.
+\end{equation}
+The reported SubCell outputs propagate exactly to the following round's
+inputs under ShuffleCell and MixColumn. This was independently checked using
+a reference implementation rather than trusting the MILP encoding alone.
+
+\begin{proposition}[Characteristic optimality in the specified MILP model]\label{prop:opt}
+Within the four-round model of Sections 2--4, the maximal DDT-product
+probability of a nontrivial differential characteristic is $2^{-32}$.
+\end{proposition}
+\begin{proof}
+The active-S-box minimization certifies that every feasible nontrivial four-round characteristic has
+at least 16 active S-boxes. The maximal DDT probability for each active
+Midori-64 S-box transition is $2^{-2}$, while an inactive transition has
+probability 1. Thus, for every such characteristic,
+\[
+ P_{\rm trail}\leq(2^{-2})^{N_{\rm active}}\leq2^{-32}.
+\]
+The characteristic in Table~\ref{tab:trail} achieves $2^{-32}$ by
+\eqref{eq:prob-witness}, so the bound is attained.
+\end{proof}
+This proposition establishes optimality for \emph{single characteristics in
+the modeled four-round construction}. It does not assert an optimum for the
+full 16-round cipher or for differential probabilities aggregated over trails.
+
+\section{Independent Software Verification}
+\subsection{Layer-by-layer validation}
+A separately implemented four-round Midori core recomputed the DDT and
+checked all 64 local nibble transitions. The specified differences are
+valid and the four active-S-box counts are $(3,1,3,9)$. Independent
+ShuffleCell/MixColumn operations map each of the first three SubCell output
+differences exactly to the next SubCell input difference. These checks pass.
+However, locally valid S-box transitions do not on their own demonstrate that
+one plaintext pair realizes the entire multi-round path.
+
+\subsection{Constructive plaintext-pair verification}
+A second MILP held the four-round difference trail fixed and searched for a
+128-bit master key and a pair of plaintexts realizing every internal transition.
+The reduced Midori-64 implementation uses $K=K_0\Vert K_1$, the whitening key
+$WK=K_0\oplus K_1$, three round-key additions with
+\begin{equation}\label{eq:key}
+ RK_i=K_{i\bmod 2}\oplus\alpha_i\qquad(i=0,1,2),
+\end{equation}
+and initial and final whitening. The fixed $\alpha_i$ are the first three
+Midori-64 round constants in the model's state serialization. The configuration
+has three full rounds and a final SubCell, hence \emph{four SubCell rounds in
+total}; it is not a full 16-round encryption.
+
+The search returned the master key
+\[
+ K=\texttt{00000101000100016177166671066660},
+\]
+whitening key $WK=\texttt{6177176771076661}$, and round keys
+\begin{align*}
+ RK_0&=\texttt{0001000010100010},\\
+ RK_1&=\texttt{6066066660066660},\\
+ RK_2&=\texttt{1010000100100100}.
+\end{align*}
+With this master key, the following explicit plaintexts and ciphertexts were
+obtained:
+\begin{table}[H]
+ \centering
+ \caption{Constructive four-round witness under the displayed master key.}\label{tab:pair}
+ \footnotesize
+ \begin{tabular}{lll}
+ \toprule
+ & First text & Second text\\
+ \midrule
+ Plaintext & \texttt{ADBBDBABBDCBAAAD} & \texttt{8DBBDBABBDEBAAAF}\\
+ Ciphertext & \texttt{ADBDDBADBDABACAD} & \texttt{8F9DDBAD9FA98C8F}\\
+ \bottomrule
+ \end{tabular}
+\end{table}
+In particular,
+\begin{align*}
+ \Delta P&=\texttt{2000000000200002},\\
+ \Delta C&=\texttt{2220000022022022}.
+\end{align*}
+Independent execution of both plaintexts through the reduced-round
+implementation reproduces \emph{every} SubCell input/output difference in
+Table~\ref{tab:trail}, not merely the external differences. The result is an
+explicit end-to-end witness of feasibility for one standard-schedule master
+key in the specified reduced four-round variant. For comparison, this exact
+trail was infeasible in a separate witness search where the master key was
+fixed to all zeros; realizability of an exact path can depend on the key.
+
+The witness MILP had an identically zero objective. Its solver status
+\texttt{OPTIMAL} means that a feasible pair was found; this must not be
+confused with optimization of the differential characteristic. Finally, one
+witness does not measure a $2^{-32}$ empirical occurrence rate for the
+fixed-key encryption permutation; a separate conditional sampling
+experiment for this key is reported in Section~\ref{sec:fixed-key}.
+
+\section{Exploratory Fixed-Key Characteristic Behaviour}
+\label{sec:fixed-key}
+The $2^{-32}$ weight computed from local DDT entries is not the
+fixed-key probability of the specified path. In particular, both active
+transitions used in the witness involve affine conforming-input sets:
+\[
+ 2\to4:\ \{\mathtt C,\mathtt D,\mathtt E,\mathtt F\},\qquad
+ 4\to2:\ \{0,2,4,6\}.
+\]
+The $2\to4$ conforming outputs lie in the XOR subgroup
+$E=\{0,2,4,6\}$. At the sole active S-box of round two,
+\[
+ x_{1,2}=S(x_{0,0})\oplus S(x_{0,10})\oplus
+ S(x_{0,15})\oplus RK_{0,2}.
+\]
+Consequently, the round-two transition is compatible with all conforming
+first-round triples if $RK_{0,2}\in E$, and incompatible with all such
+triples otherwise. A uniformly chosen master key satisfies this necessary
+condition with probability $1/4$. This is not a complete characterization
+of the keys for which all four rounds can follow the path.
+
+A separate C implementation performs conditional sampling for the
+specific verified master key: it chooses first-round active inputs
+uniformly among the conforming triples and samples the other nibbles.
+The exact conditioning probability $2^{-6}$ is incorporated when
+estimating the full-path probability. Two runs with $10^8$ conditional
+samples each yielded 1,541 and 1,543 hits, corresponding to
+estimated probabilities approximately $2^{-21.99}$ and $2^{-21.98}$.
+Thus the observed fixed-key path probability is near $2^{-22}$,
+well above the DDT-product $2^{-32}$. These are statistical estimates,
+not an analytic probability or a claim about the fraction of compatible
+master keys. We interpret them in the established fixed-key and
+plateau-characteristic literature, in particular Canteaut and Fruchon
+\cite{canteaut2025}. The underlying phenomenon is not claimed as new.
+
+\section{Discussion, Limitations, and Conclusion}
+This reproducible implementation recovers the known four-round Midori-64
+minimum of 16 active S-boxes by two independent methods: Gurobi's
+\texttt{OPTIMAL} certificate for the exact bit-level MILP, and a
+solver-free word-level dynamic program. The latter is consistent with the
+classical wide-trail four-round propagation bound. Because the maximum
+probability of a nonzero Midori S-box transition is $2^{-2}$, every
+nontrivial four-round characteristic has a DDT-product of at most
+$2^{-32}$. The explicit characteristic in Table~\ref{tab:trail} attains
+this bound. Its realizability is confirmed by a master key and plaintext
+pair under the standard key schedule in a reduced four-round Midori-64
+implementation.
+
+The DDT-product is not the actual occurrence probability of the same
+path under every fixed master key. Conditional sampling for the displayed
+master key estimates a path probability near $2^{-22}$, whereas the
+round-two algebraic condition in Section~\ref{sec:fixed-key} already
+excludes three quarters of uniformly chosen keys. This illustrates
+fixed-key/plateau behaviour studied in the existing literature, rather
+than a new attack or security result. Deriving the complete set of
+compatible-key conditions and an exact fixed-key probability is a
+natural direction for further investigation. The present contribution
+is the transparent modeling, exhaustive component tests, independent
+lower-bound calculation, saved optimization record, and constructive
+software verification of a known four-round benchmark.
+
+\appendix
+\section{Reproducibility and Saved Artifacts}
+The model builder (\texttt{build\_models.py}) and solver
+(\texttt{solve.py}) share the saved inequalities. Software verification
+uses \texttt{midori\_reference.py} and \texttt{verify\_trail.py}.
+Additional scripts perform focused active-S-box optimization, an independent
+constraint audit, and a standard-key witness search. In the repository root, the principal commands are:
+\begin{lstlisting}
+python build_models.py
+python -u -m unittest discover -s tests -v
+python -u overnight_midori_active.py --hours 6
+python -u solve.py --objective probability --time-limit 7200
+python independent_checks.py
+python compact_models.py
+python -u verify_trail.py --report results/probability_trail.json --samples 0
+python -u find_midori_standard_key_pair.py --report results/probability_trail.json --search-master-key --time-limit 120
+\end{lstlisting}
+The retained experiment records and reproducibility tools provide the audit trail:
+\begin{itemize}
+\item \texttt{results/active\_optimality.json} --- certified 16/16 objective and bound, status \texttt{OPTIMAL};
+\item \texttt{results/active\_solver.log} --- full branch-and-bound record;
+\item \texttt{results/active\_solution.sol} --- the complete 1,280-variable assignment;
+\item \texttt{results/probability\_trail.json} --- objective 32 and all four rounds' difference states;
+\item \texttt{results/standard\_key\_witness.json} --- concrete master key, plaintexts, ciphertexts, and witness check;
+\item \texttt{results/fixed\_key\_sampling.json} --- conditional Monte Carlo settings, seeds, and observed hits.
+\end{itemize}
+The probability-only run was interrupted and does not have solver-certified
+optimality. The characteristic optimum follows instead from the certified active-S-box bound and
+Proposition~\ref{prop:opt}. Numerical solver certification is subject to
+Gurobi tolerances, as in standard MILP practice. A word-level dynamic program independently
+provides the same 16-active lower bound. The archived standard-key witness is separately replayed against a
+test-vector-validated Midori implementation. The repository also provides a
+small feasibility MILP to obtain a fresh witness, which may differ from
+the recorded one.
+
+\begin{thebibliography}{9}
+\bibitem{banik2015}
+S. Banik, A. Bogdanov, T. Isobe, K. Shibutani, H. Hiwatari, T. Akishita,
+and F. Regazzoni.
+\newblock Midori: A block cipher for low energy.
+\newblock In \emph{Advances in Cryptology---ASIACRYPT 2015}, Part II,
+LNCS 9453, pp. 411--436, Springer, 2015.
+\newblock \url{https://eprint.iacr.org/2015/1142}.
+
+\bibitem{ilter2023}
+M. B. \c{I}lter and A. A. Sel\c{c}uk.
+\newblock MILP-aided cryptanalysis of the FUTURE block cipher.
+\newblock In \emph{Innovative Security Solutions for Information Technology
+and Communications (SecITC 2022)}, LNCS 13809, pp. 153--167,
+Springer, 2023.
+\newblock \url{https://doi.org/10.1007/978-3-031-32636-3_9}.
+\newblock Preprint: \url{https://eprint.iacr.org/2022/1398}.
+
+\bibitem{sasaki2017}
+Y. Sasaki and Y. Todo.
+\newblock New algorithm for modeling S-box in MILP based differential and
+division trail search.
+\newblock In \emph{Innovative Security Solutions for Information Technology
+and Communications (SecITC 2017)}, LNCS 10543, pp. 150--165, Springer, 2017.
+\newblock \url{https://doi.org/10.1007/978-3-319-69284-5_11}.
+\bibitem{mouha2012}
+N. Mouha, Q. Wang, D. Gu, and B. Preneel.
+\newblock Differential and linear cryptanalysis using mixed-integer linear programming.
+\newblock In \emph{Inscrypt 2011}, LNCS 7537, pp. 57--76, Springer, 2012.
+\newblock \url{https://doi.org/10.1007/978-3-642-34704-7_5}.
+
+\bibitem{sun2014}
+S. Sun, L. Hu, P. Wang, K. Qiao, X. Ma, and L. Song.
+\newblock Automatic security evaluation and (related-key) differential characteristic search.
+\newblock In \emph{ASIACRYPT 2014}, LNCS 8873, pp. 158--178, Springer, 2014.
+\newblock \url{https://eprint.iacr.org/2013/676}.
+
+\bibitem{daemen2002}
+J. Daemen and V. Rijmen.
+\newblock \emph{The Design of Rijndael: AES---The Advanced Encryption Standard}.
+\newblock Springer, 2002, Chapter 9, Section 9.5 (Four-Round Propagation Theorem).
+\newblock \url{https://doi.org/10.1007/978-3-662-04722-4}.
+
+\bibitem{canteaut2025}
+A. Canteaut and M. Fruchon.
+\newblock Understanding unexpected fixed-key differential behaviours: How to avoid major weaknesses in lightweight designs.
+\newblock \emph{ASIACRYPT 2025}. Extended version: \url{https://eprint.iacr.org/2025/1553}.
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,27 @@
+{
+  "gurobi_status": "OPTIMAL",
+  "sol_count": 1,
+  "key_mode": "SEARCH_STANDARD_MASTER_KEY",
+  "trail_probability_from_ddt": "2^-32",
+  "global_probability_optimality_proven": false,
+  "master_key": "00000101000100016177166671066660",
+  "whitening_key": "6177176771076661",
+  "round_keys": [
+    "0001000010100010",
+    "6066066660066660",
+    "1010000100100100"
+  ],
+  "plaintext_left": "ADBBDBABBDCBAAAD",
+  "plaintext_right": "8DBBDBABBDEBAAAF",
+  "ciphertext_left": "ADBDDBADBDABACAD",
+  "ciphertext_right": "8F9DDBAD9FA98C8F",
+  "full_trail_independent_check": "PASS",
+  "per_round_inputs": [
+    "CCCCCCCCCCCCCCCC",
+    "0001000010100010",
+    "CCCCCCCCCCACCCCC",
+    "0001000100100100"
+  ],
+  "notes": "Feasible explicit witness in four-round reduced Midori64 with standard K0/K1, 3 alpha round constants, and initial/final whitening; not a probability-optimality solver certificate.",
+  "evidence_note": "Witness reconstructed from archived Gurobi run and independently replayed against the reference cipher; the search can produce different witnesses in repeated runs."
+}
