@@ -1,0 +1,13 @@
+# Locally generated LPs, solver logs/solutions, caches and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.gurobi/
+.pytest_cache/
+generated/*
+!generated/.gitkeep
+*.aux
+*.fls
+*.fdb_latexmk
+*.synctex.gz
